@@ -1,0 +1,87 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: payment-postgres
+
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_USER: payments
+      POSTGRES_PASSWORD: payments
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: payment-rabbitmq
+
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  api:
+    build: .
+
+    container_name: payment-api
+
+    depends_on:
+      - postgres
+      - rabbitmq
+
+    env_file:
+      - .env
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - .:/app
+
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+
+  worker:
+    build: .
+
+    container_name: payment-worker
+
+    depends_on:
+      - postgres
+      - rabbitmq
+
+    env_file:
+      - .env
+
+    volumes:
+      - .:/app
+
+    command: >
+      python -m app.workers.worker
+
+  publisher:
+    build: .
+
+    container_name: payment-publisher
+
+    depends_on:
+      - postgres
+      - rabbitmq
+
+    env_file:
+      - .env
+
+    volumes:
+      - .:/app
+
+    command: >
+      python -m app.workers.publisher
+
+volumes:
+  postgres_data:
